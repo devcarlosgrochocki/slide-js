@@ -1,14 +1,10 @@
-import debounce from "./debounce.js"
+import debounce from './debounce.js';
 
-export default class Slide {
-  constructor(slide, wrapper, activeClass) {
+export class Slide {
+  constructor(slide, wrapper) {
     this.slide = document.querySelector(slide);
     this.wrapper = document.querySelector(wrapper);
-    this.dist = {
-      finalPosition: 0,
-      startX: 0,
-      movement: 0,
-    };
+    this.dist = { finalPosition: 0, startX: 0, movement: 0 };
     this.activeClass = 'active';
   }
 
@@ -16,27 +12,27 @@ export default class Slide {
     this.slide.style.transition = active ? 'transform .3s' : '';
   }
 
-  updatePosition(clientX) {
-    this.dist.movement = (this.dist.startX - clientX) * 1.6;
-    return this.dist.finalPosition - this.dist.movement;
-  }
-
   moveSlide(distX) {
     this.dist.movePosition = distX;
     this.slide.style.transform = `translate3d(${distX}px, 0, 0)`;
   }
 
+  updatePosition(clientX) {
+    this.dist.movement = (this.dist.startX - clientX) * 1.6;
+    return this.dist.finalPosition - this.dist.movement;
+  }
+
   onStart(event) {
-    let moveType;
+    let movetype;
     if (event.type === 'mousedown') {
       event.preventDefault();
       this.dist.startX = event.clientX;
-      moveType = 'mousemove';
+      movetype = 'mousemove';
     } else {
       this.dist.startX = event.changedTouches[0].clientX;
-      moveType = 'touchmove';
+      movetype = 'touchmove';
     }
-    this.wrapper.addEventListener(moveType, this.onMove);
+    this.wrapper.addEventListener(movetype, this.onMove);
     this.transition(false);
   }
 
@@ -50,8 +46,8 @@ export default class Slide {
   }
 
   onEnd(event) {
-    const moveType = event.type === 'mouseup' ? 'mousemove' : 'touchmove';
-    this.wrapper.removeEventListener(moveType, this.onMove);
+    const movetype = event.type === 'mouseup' ? 'mousemove' : 'touchmove';
+    this.wrapper.removeEventListener(movetype, this.onMove);
     this.dist.finalPosition = this.dist.movePosition;
     this.transition(true);
     this.changeSlideOnEnd();
@@ -60,7 +56,7 @@ export default class Slide {
   changeSlideOnEnd() {
     if (this.dist.movement > 120 && this.index.next !== undefined) {
       this.activeNextSlide();
-    } else if (this.dist.movement < 120 && this.index.prev !== undefined) {
+    } else if (this.dist.movement < -120 && this.index.prev !== undefined) {
       this.activePrevSlide();
     } else {
       this.changeSlide(this.index.active);
@@ -74,41 +70,31 @@ export default class Slide {
     this.wrapper.addEventListener('touchend', this.onEnd);
   }
 
-  bindEvents() {
-    this.onStart = this.onStart.bind(this);
-    this.onMove = this.onMove.bind(this);
-    this.onEnd = this.onEnd.bind(this);
-    this.onResize = debounce(this.onResize.bind(this), 200);
-  }
+  // Slides config
 
-  slidesPosition(slide) {
+  slidePosition(slide) {
     const margin = (this.wrapper.offsetWidth - slide.offsetWidth) / 2;
     return -(slide.offsetLeft - margin);
   }
 
-  // Slides config
   slidesConfig() {
-    this.slidesArray = [...this.slide.children].map((element) => {
-      const position = this.slidesPosition(element);
-      return {
-        element,
-        position,
-      };
+    this.slideArray = [...this.slide.children].map((element) => {
+      const position = this.slidePosition(element);
+      return { position, element };
     });
-    console.log(this.slidesArray);
   }
 
   slidesIndexNav(index) {
-    const last = this.slidesArray.length - 1;
+    const last = this.slideArray.length - 1;
     this.index = {
       prev: index ? index - 1 : undefined,
       active: index,
-      next: last === index ? undefined : index + 1,
+      next: index === last ? undefined : index + 1,
     };
   }
 
   changeSlide(index) {
-    const activeSlide = this.slidesArray[index];
+    const activeSlide = this.slideArray[index];
     this.moveSlide(activeSlide.position);
     this.slidesIndexNav(index);
     this.dist.finalPosition = activeSlide.position;
@@ -116,22 +102,18 @@ export default class Slide {
   }
 
   changeActiveClass() {
-    this.slidesArray.forEach((item) =>
+    this.slideArray.forEach((item) =>
       item.element.classList.remove(this.activeClass),
     );
-    this.slidesArray[this.index.active].element.classList.add(this.activeClass);
+    this.slideArray[this.index.active].element.classList.add(this.activeClass);
   }
 
   activePrevSlide() {
-    if (this.index.prev !== undefined) {
-      this.changeSlide(this.index.prev);
-    }
+    if (this.index.prev !== undefined) this.changeSlide(this.index.prev);
   }
 
   activeNextSlide() {
-    if (this.index.next !== undefined) {
-      this.changeSlide(this.index.next);
-    }
+    if (this.index.next !== undefined) this.changeSlide(this.index.next);
   }
 
   onResize() {
@@ -145,12 +127,37 @@ export default class Slide {
     window.addEventListener('resize', this.onResize);
   }
 
+  bindEvents() {
+    this.onStart = this.onStart.bind(this);
+    this.onMove = this.onMove.bind(this);
+    this.onEnd = this.onEnd.bind(this);
+
+    this.activePrevSlide = this.activePrevSlide.bind(this);
+    this.activeNextSlide = this.activeNextSlide.bind(this);
+
+    this.onResize = debounce(this.onResize.bind(this), 200);
+  }
+
   init() {
     this.bindEvents();
-    this.transition();
+    this.transition(true);
     this.addSlideEvents();
     this.slidesConfig();
     this.addResizeEvent();
+    this.changeSlide(0);
     return this;
+  }
+}
+
+export class SlideNav extends Slide {
+  addArrow(prev, next) {
+    this.prevElement = document.querySelector(prev);
+    this.nextElement = document.querySelector(next);
+    this.addArrowEvent();
+  }
+
+  addArrowEvent() {
+    this.prevElement.addEventListener('click', this.activePrevSlide);
+    this.nextElement.addEventListener('click', this.activeNextSlide);
   }
 }
